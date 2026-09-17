@@ -1,0 +1,5 @@
+flask
+authlib
+requests
+redis
+psycopg2-binarypython-dotenv
