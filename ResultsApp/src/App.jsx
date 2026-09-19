@@ -26,19 +26,38 @@ function App() {
   }
 
   useEffect(() => {
+    // Initial fetch to populate the UI immediately
     fetchResults()
-    const interval = setInterval(() => {
-      fetchResults()
-    }, 5 * 60 * 1000) // 5 minutes
 
-    return () => clearInterval(interval)
+    // Setup Server-Sent Events (SSE) for real-time updates
+    const eventSource = new EventSource('http://127.0.0.1:5000/api/stream')
+
+    eventSource.onmessage = (event) => {
+      try {
+        const newData = JSON.parse(event.data)
+        setResults(newData)
+        setLastRefreshed(new Date())
+      } catch (err) {
+        console.error("Error parsing SSE data", err)
+      }
+    }
+
+    eventSource.onerror = (err) => {
+      console.error("SSE connection error", err)
+      // SSE automatically reconnects, but we can log it
+    }
+
+    // Cleanup the SSE connection when the component unmounts
+    return () => {
+      eventSource.close()
+    }
   }, [])
 
   return (
     <div className="App">
       <h1>Live Voting Results</h1>
       <button onClick={fetchResults} disabled={loading} style={{ marginBottom: '20px', padding: '10px 20px', fontSize: '16px' }}>
-        {loading ? 'Refreshing...' : 'Refresh Results'}
+        {loading ? 'Refreshing...' : 'Hard Refresh'}
       </button>
       
       {error && <p style={{ color: 'red' }}>Error: {error}</p>}
@@ -55,7 +74,7 @@ function App() {
       </div>
       
       <p style={{ marginTop: '30px', fontSize: '12px', color: '#666' }}>
-        Last refreshed: {lastRefreshed.toLocaleTimeString()}
+        Last updated: {lastRefreshed.toLocaleTimeString()} (Real-time tracking active)
       </p>
     </div>
   )

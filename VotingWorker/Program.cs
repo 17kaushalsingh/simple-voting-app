@@ -86,6 +86,9 @@ class Program
                             updateCmd.ExecuteNonQuery();
                             
                             transaction.Commit();
+                            
+                            // Publish an event to Redis so the Flask app can push updates to clients via SSE
+                            db.Publish("vote_updates", "updated");
                             Console.WriteLine($"Saved vote: Candidate ID {voteData.candidate_id} for {voteData.user_email}");
                         }
                         catch (PostgresException ex) when (ex.SqlState == "23505")

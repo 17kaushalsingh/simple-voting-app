@@ -145,27 +145,45 @@ def submit_vote():
 
 
 
-@app.route("/api/results")
-def api_results():
+def get_current_tally():
   conn = get_db_connection()
   if conn:
     try:
       cur = conn.cursor()
-      cur.execute('''
-          SELECT name, vote_count as votes 
-          FROM candidates 
-          ORDER BY votes DESC;
-      ''')
+      cur.execute("SELECT name, vote_count as votes FROM candidates ORDER BY votes DESC;")
       results = [{"name": row[0], "votes": row[1]} for row in cur.fetchall()]
       cur.close()
-      
-      # Add CORS headers so React app running on different port can access it
-      response = jsonify(results)
-      response.headers.add("Access-Control-Allow-Origin", "*")
-      return response
+      return results
     finally:
       release_db_connection(conn)
-  return jsonify({"error": "Database connection failed"}), 500
+  return []
+
+@app.route("/api/results")
+def api_results():
+  results = get_current_tally()
+  if not results:
+    return jsonify({"error": "Database connection failed"}), 500
+  response = jsonify(results)
+  response.headers.add("Access-Control-Allow-Origin", "*")
+  return response
+
+from flask import Response
+import json
+
+@app.route("/api/stream")
+def stream():
+    def event_stream():
+        pubsub = redis_client.pubsub()
+        pubsub.subscribe("vote_updates")
+        for message in pubsub.listen():
+            if message["type"] == "message":
+                results = get_current_tally()
+                yield f"data: {json.dumps(results)}\n\n"
+    
+    response = Response(event_stream(), mimetype="text/event-stream")
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Cache-Control", "no-cache")
+    return response
 
 
 @app.route("/reset")

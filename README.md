@@ -14,10 +14,11 @@ The application is broken down into modular components that handle specific resp
    - Exposes a `/api/results` endpoint that reads the live tally from Postgres for the Results dashboard.
    - Exposes a `/reset` endpoint to easily wipe all sessions and votes for testing.
 
-2. **Results App (React/Vite)**
+2. **Results App (React/Vite) & Real-time SSE**
    - A single-page application (SPA) dashboard built with React.
-   - Periodically polls the Flask `/api/results` endpoint (every 5 minutes) or allows manual refresh.
-   - Displays the current vote tally dynamically.
+   - **(New!) Real-time UX:** Completely replaced the 5-minute polling loop with **Server-Sent Events (SSE)**.
+   - The React app establishes a persistent HTTP connection to the Flask `/api/stream` endpoint. When the C# worker successfully saves a vote, it pushes a Pub/Sub message through Redis. Flask instantly catches this and pushes the new live tally to the React app in milliseconds, ensuring a truly real-time dashboard without unnecessary network polling.
+   - Maintains a manual "Hard Refresh" button as a fallback.
 
 3. **Background Worker (C# / .NET)**
    - Continuously polls the Redis `votes` queue for new data using a non-blocking `ListLeftPop`.
