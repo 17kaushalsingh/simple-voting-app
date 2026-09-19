@@ -19,22 +19,45 @@ class Program
         var redis = ConnectionMultiplexer.Connect(redisConnectionString);
         var db = redis.GetDatabase();
 
-        Console.WriteLine("Worker is listening for votes on Redis queue 'votes'...");
+        try
+        {
+            db.StreamCreateConsumerGroup("votes", "worker-group", "0-0", createStream: true);
+            Console.WriteLine("Consumer group 'worker-group' ensured.");
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
+        {
+            // Group already exists, ignore
+        }
+
+        Console.WriteLine("Worker is listening for votes on Redis Stream 'votes'...");
+
+        // First process any unacknowledged messages (crash recovery), then block for new ones
+        string nextId = "0-0"; 
+        bool recovering = true;
 
         while (true)
         {
             try
             {
-                var voteValue = db.ListLeftPop("votes");
+                var messages = db.StreamReadGroup("votes", "worker-group", "worker-1", recovering ? nextId : ">", count: 1);
 
-                if (voteValue.IsNull)
+                if (messages.Length == 0)
                 {
+                    if (recovering) 
+                    {
+                        recovering = false; // Finished recovering old messages, switch to polling new ones
+                        continue;
+                    }
                     System.Threading.Thread.Sleep(500);
                     continue;
                 }
                 else
                 {
-                    string voteJson = voteValue.ToString();
+                    var message = messages[0];
+                    if (recovering) nextId = message.Id; // Update cursor for recovery mode
+                    
+                    // The payload is stored in the 'payload' field
+                    string voteJson = message.Values[0].Value.ToString();
 
                     Console.WriteLine($"Received vote payload: {voteJson}");
 
@@ -68,6 +91,9 @@ class Program
                             db.ListRightPush("votes_dlq", voteJson);
                         }
                     }
+                    
+                    // Acknowledge the message so it is removed from the Pending Entries List (PEL)
+                    db.StreamAcknowledge("votes", "worker-group", message.Id);
                 }
             }
             catch (Exception ex)

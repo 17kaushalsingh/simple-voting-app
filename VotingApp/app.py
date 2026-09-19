@@ -133,7 +133,7 @@ def submit_vote():
   # Use pipeline for atomic SADD and RPUSH
   pipeline = redis_client.pipeline()
   pipeline.sadd("voted_users", user_email)
-  pipeline.rpush("votes", json.dumps(vote_data))
+  pipeline.xadd('votes', {'payload': json.dumps(vote_data)})
   results = pipeline.execute()
 
   # SADD returns 1 if added, 0 if already exists
@@ -176,6 +176,11 @@ def reset():
   redis_client.delete("voted_users")
   redis_client.delete("votes")
   redis_client.delete("votes_dlq")
+  try:
+      # Re-create consumer group on reset
+      redis_client.xgroup_create("votes", "worker-group", id="0", mkstream=True)
+  except Exception:
+      pass
   
   # Clear Postgres voting records
   conn = get_db_connection()

@@ -25,6 +25,7 @@ The application is broken down into modular components that handle specific resp
    - Handles transient database errors and duplicate votes by routing failed payloads to a Dead Letter Queue (`votes_dlq`) in Redis to ensure zero data loss.
 
 4. **Queue & Session Store (Redis)**
+   - **(New!) Redis Streams:** We recently transitioned from basic Redis Lists to **Redis Streams** for the voting queue. This introduces Consumer Groups and explicit Acknowledgments (ACK). If the C# worker crashes mid-processing, the unacknowledged vote remains in the Pending Entries List (PEL) and is recovered upon restart, guaranteeing **zero data loss** (at-least-once delivery).
    - Acts as an intermediary message broker, decoupling the Flask frontend from the PostgreSQL database to absorb high-traffic spikes without crashing the DB.
    - Acts as an ultra-fast in-memory lookup table to check if a user has already voted.
 
