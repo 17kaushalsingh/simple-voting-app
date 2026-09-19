@@ -52,6 +52,31 @@ google = oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
+def get_candidates():
+  # 1. Try to fetch from Redis Cache (Read-Through Cache)
+  cached_candidates = redis_client.get("candidates")
+  if cached_candidates:
+    return json.loads(cached_candidates)
+  
+  # 2. Cache Miss: Fetch from PostgreSQL
+  conn = get_db_connection()
+  candidates = []
+  if conn:
+    try:
+      cur = conn.cursor()
+      cur.execute("SELECT id, name FROM candidates ORDER BY id ASC;")
+      candidates = cur.fetchall()
+      cur.close()
+      
+      # Save back to Redis cache
+      if candidates:
+        redis_client.set("candidates", json.dumps(candidates))
+    except Exception as e:
+      print(f"DB Error fetching candidates: {e}")
+    finally:
+      release_db_connection(conn)
+  return candidates
+
 @app.route("/")
 def index():
   if "user" in session:
@@ -97,17 +122,8 @@ def vote():
   if redis_client.sismember("voted_users", user_email):
     return "<h3>You have already cast your vote!</h3><a href='/logout'>Logout</a>"
 
-  # Fetch candidates directly from PostgreSQL using connection pool
-  conn = get_db_connection()
-  candidates = []
-  if conn:
-      try:
-          cur = conn.cursor()
-          cur.execute("SELECT id, name FROM candidates;")
-          candidates = cur.fetchall()
-          cur.close()
-      finally:
-          release_db_connection(conn)
+  # Fetch candidates using Read-Through Cache to decouple from Postgres
+  candidates = get_candidates()
 
   html = "<h2>Vote for your favorite cricketer:</h2><form action='/submit-vote' method='POST'>"
   for c in candidates:
@@ -192,6 +208,7 @@ def reset():
   redis_client.delete("voted_users")
   redis_client.delete("votes")
   redis_client.delete("votes_dlq")
+  redis_client.delete("candidates")  # Invalidate candidates cache
   try:
       # Re-create consumer group on reset
       redis_client.xgroup_create("votes", "worker-group", id="0", mkstream=True)

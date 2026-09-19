@@ -9,8 +9,9 @@ The application is broken down into modular components that handle specific resp
 1. **Voting App (Python/Flask)**
    - Serves as the user-facing frontend.
    - Handles Google OAuth authentication.
+   - **(New!) Read-Through Caching:** The `/vote` UI retrieves the list of candidates directly from a Redis cache rather than querying PostgreSQL on every page load. This vastly speeds up page loads and completely decouples the voting frontend from the database. If Postgres goes down for maintenance, users can still load the UI and cast votes into the Redis queue completely uninterrupted!
    - Enforces the rule that users can only vote once by checking a Redis `Set` (`voted_users`).
-   - Pushes successful votes as a JSON payload to a Redis `List` queue (`votes`).
+   - Pushes successful votes as a JSON payload to a Redis Stream (`votes`).
    - Exposes a `/api/results` endpoint that reads the live tally from Postgres for the Results dashboard.
    - Exposes a `/reset` endpoint to easily wipe all sessions and votes for testing.
 
