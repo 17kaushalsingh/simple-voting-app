@@ -29,10 +29,11 @@ The application is broken down into modular components that handle specific resp
    - Acts as an intermediary message broker, decoupling the Flask frontend from the PostgreSQL database to absorb high-traffic spikes without crashing the DB.
    - Acts as an ultra-fast in-memory lookup table to check if a user has already voted.
 
-5. **Database (PostgreSQL)**
+5. **Database (PostgreSQL) & CQRS Scaling**
    - The permanent, persistent ledger for the application.
    - Stores the `candidates` table and the immutable `votes` table.
    - Enforces data integrity at the database layer (e.g., unique constraints on `user_email`).
+   - **(New!) CQRS Pattern:** The database implements a Command Query Responsibility Segregation (CQRS) pattern. The C# worker transactionally saves the raw vote (for auditing) *and* increments a pre-aggregated `vote_count` directly on the `candidates` table. This allows the Results API to fetch live totals instantly in `O(1)` time without running expensive `COUNT()` aggregations over millions of rows.
 
 ---
 

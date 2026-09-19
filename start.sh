@@ -5,6 +5,10 @@ brew services start postgresql
 brew services start redis
 
 echo "⏳ Waiting for services to initialize..."
+
+echo "🛠 Applying database migrations..."
+python3 Postgres/migrate_cqrs.py
+
 sleep 3
 
 echo "🐍 Starting Voting App (Flask)..."

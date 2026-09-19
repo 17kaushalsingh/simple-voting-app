@@ -5,7 +5,8 @@ DROP TABLE IF EXISTS candidates;
 -- 1. Create the candidates table
 CREATE TABLE candidates (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL
+    name VARCHAR(255) NOT NULL,
+    vote_count INT DEFAULT 0
 );
 
 -- 2. Create the votes event ledger table with unique email constraint

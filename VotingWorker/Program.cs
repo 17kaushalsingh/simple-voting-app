@@ -71,13 +71,21 @@ class Program
                             // Insert into PostgreSQL
                             using var conn = new NpgsqlConnection(pgConnectionString);
                             conn.Open();
+                            
+                            using var transaction = conn.BeginTransaction();
 
-                            string query = "INSERT INTO votes (candidate_id, user_email) VALUES (@candidate_id, @user_email)";
-                            using var cmd = new NpgsqlCommand(query, conn);
-                            cmd.Parameters.AddWithValue("candidate_id", voteData.candidate_id);
-                            cmd.Parameters.AddWithValue("user_email", voteData.user_email);
+                            string insertQuery = "INSERT INTO votes (candidate_id, user_email) VALUES (@candidate_id, @user_email)";
+                            using var insertCmd = new NpgsqlCommand(insertQuery, conn, transaction);
+                            insertCmd.Parameters.AddWithValue("candidate_id", voteData.candidate_id);
+                            insertCmd.Parameters.AddWithValue("user_email", voteData.user_email);
+                            insertCmd.ExecuteNonQuery();
 
-                            cmd.ExecuteNonQuery();
+                            string updateQuery = "UPDATE candidates SET vote_count = vote_count + 1 WHERE id = @candidate_id";
+                            using var updateCmd = new NpgsqlCommand(updateQuery, conn, transaction);
+                            updateCmd.Parameters.AddWithValue("candidate_id", voteData.candidate_id);
+                            updateCmd.ExecuteNonQuery();
+                            
+                            transaction.Commit();
                             Console.WriteLine($"Saved vote: Candidate ID {voteData.candidate_id} for {voteData.user_email}");
                         }
                         catch (PostgresException ex) when (ex.SqlState == "23505")

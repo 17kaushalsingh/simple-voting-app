@@ -152,10 +152,8 @@ def api_results():
     try:
       cur = conn.cursor()
       cur.execute('''
-          SELECT c.name, COUNT(v.id) as votes 
-          FROM candidates c 
-          LEFT JOIN votes v ON c.id = v.candidate_id 
-          GROUP BY c.id, c.name 
+          SELECT name, vote_count as votes 
+          FROM candidates 
           ORDER BY votes DESC;
       ''')
       results = [{"name": row[0], "votes": row[1]} for row in cur.fetchall()]
@@ -187,7 +185,7 @@ def reset():
   if conn:
     try:
       cur = conn.cursor()
-      cur.execute("TRUNCATE TABLE votes;")
+      cur.execute("TRUNCATE TABLE votes; UPDATE candidates SET vote_count = 0;")
       conn.commit()
       cur.close()
     finally:
